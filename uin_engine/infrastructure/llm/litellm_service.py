@@ -1,5 +1,6 @@
 import asyncio
 import os
+import re
 from typing import List, Optional
 import litellm
 
@@ -23,79 +24,62 @@ class LitellmService(ILLMService):
         if settings.llm.api_base:
             litellm.api_base = settings.llm.api_base
         
-        # Automatically drop any parameters that the model does not support
         litellm.drop_params = True
-
-        # This is a temporary setup. In a more complex app, you might pass
-        # specific configs per LLM model, or set up routing.
         self.model_name = settings.llm.model_name
         self._set_env_variables_for_litellm()
 
         print(f"[LLM] Using LiteLLM with model: {self.model_name}, API Base: {litellm.api_base or 'default'}")
 
     def _set_env_variables_for_litellm(self):
-        """
-        LiteLLM can pick up keys from env vars.
-        Ensure our settings are reflected in the environment if not directly used.
-        """
         if settings.llm.api_key:
-            # LiteLLM uses OPENAI_API_KEY for many OpenAI-compatible models
             os.environ["OPENAI_API_KEY"] = settings.llm.api_key
         if settings.llm.api_base:
             os.environ["OPENAI_API_BASE"] = settings.llm.api_base
-        # Add more specific env vars if we plan to use specific providers beyond OpenAI-compatible
-        # e.g., os.environ["ANTHROPIC_API_KEY"] = ...
-
 
     async def _get_llm_response(self, messages: List[dict]) -> str:
-        """
-        Helper to make a single litellm call with a retry mechanism for transient errors.
-        """
         max_retries = 3
         for attempt in range(max_retries):
             try:
                 response = await litellm.acompletion(
                     model=self.model_name,
                     messages=messages,
-                    temperature=0.7, # A bit creative, but not wild
-                    max_tokens=150,  # Limit response length for dialogue
+                    temperature=0.7,
+                    max_tokens=200, # Increased slightly to accommodate tags
                 )
-                # LiteLLM's response structure is similar to OpenAI's
                 return response.choices[0].message.content.strip()
             except (litellm.APIConnectionError, litellm.Timeout, litellm.ServiceUnavailableError) as e:
                 print(f"LLM call failed on attempt {attempt + 1}/{max_retries}. Retrying... Error: {e}")
                 if attempt + 1 == max_retries:
-                    # Last attempt failed, re-raise the exception
                     raise e
-                await asyncio.sleep(1) # Wait 1 second before retrying
+                await asyncio.sleep(1)
             except Exception as e:
-                # For non-retriable errors (like BadRequestError), fail immediately
                 print(f"Error calling LiteLLM: {e}")
-                # We re-raise the exception to be caught by the CLI loop
                 raise e
-        
-        # This line should not be reached if retries fail, but as a fallback:
         return "I'm sorry, I could not process your request due to a persistent error."
 
     def _build_messages_from_context(self, context: DialogueGenerationContext) -> List[dict]:
         """
-        Transforms our DialogueGenerationContext into the message format expected by LLMs.
+        Transforms our DialogueGenerationContext into the message format expected by LLMs,
+        including instructions for fact extraction.
         """
-        # System message defines the role of the NPC
         system_message = (
-            f"You are {context.listener_name}, a character in a mystery game on a yacht. "
+            f"You are {context.listener_name}, a character in a mystery game. "
             f"Your description: {context.listener_description}. "
             f"Your goals: {', '.join(context.listener_goals)}. "
             f"Your current knowledge: {context.listener_knowledge}. "
             "Respond naturally, stay in character, and keep your answers concise. "
-            "Do not reveal information you don't know or that would break character. "
-            f"You are currently talking to {context.speaker_name}."
+            f"You are talking to {context.speaker_name}.\n\n"
+            "IMPORTANT: If your response, or the user's message to you, directly reveals or confirms a crucial piece of information, "
+            "you MUST append a special tag `[FACT_REVEALED: <fact_id>]` on a new line at the very end of your response. "
+            "Do not add any text after the tag. You can add multiple tags if multiple facts are revealed.\n"
+            "Example: If you say 'I saw a bloody knife...', you must append `[FACT_REVEALED: bloody_knife]`.\n\n"
+            "Here is the list of possible facts you can reveal:\n"
+            f"{context.all_scenario_facts}"
         )
         
-        # Add recent dialogue history to give context to the conversation
         if context.recent_dialogue_history:
             system_message += (
-                f"\n\nHere is the recent conversation history between you and {context.speaker_name}:\n"
+                f"\n\nHere is the recent conversation history:\n"
                 f"{context.recent_dialogue_history}"
             )
 
@@ -105,25 +89,46 @@ class LitellmService(ILLMService):
         ]
         return messages
 
-
     async def generate_dialogue(self, context: DialogueGenerationContext) -> DialogueGenerationResponse:
         """
-        Generates a single dialogue response using LiteLLM.
+        Generates a single dialogue response using LiteLLM and parses it
+        for revealed facts.
         """
         messages = self._build_messages_from_context(context)
-        llm_content = await self._get_llm_response(messages)
+        llm_raw_content = await self._get_llm_response(messages)
+
+        # Regex to find all fact tags
+        fact_tag_pattern = r'\[FACT_REVEALED:\s*(\w+)\s*\]'
+        revealed_fact_ids = re.findall(fact_tag_pattern, llm_raw_content)
+
+        # Clean the tags from the response text that will be shown to the user
+        cleaned_text = re.sub(fact_tag_pattern, '', llm_raw_content).strip()
 
         return DialogueGenerationResponse(
-            text=llm_content,
-            newly_revealed_facts=[],  # LiteLLM is not currently set up to extract structured facts
-            emotional_impact={}       # Similar to above, this would need specific prompt engineering
+            text=cleaned_text,
+            newly_revealed_facts=revealed_fact_ids,
+            emotional_impact={}
         )
 
     async def batch_generate_dialogues(self, contexts: List[DialogueGenerationContext]) -> List[DialogueGenerationResponse]:
-        """
-        Generates multiple dialogue responses in a single batch call for efficiency.
-        Note: LiteLLM's acompletion does not natively batch *different* conversations
-        into one API call to the backend LLM. This will essentially run them in parallel.
-        """
         tasks = [self.generate_dialogue(ctx) for ctx in contexts]
         return await asyncio.gather(*tasks)
+
+    async def summarize(self, text_to_summarize: str) -> str:
+        """
+        Summarizes a given block of text using the LLM.
+        """
+        messages = [
+            {
+                "role": "system",
+                "content": "You are a helpful assistant. Your task is to summarize the following text concisely, "
+                           "capturing the main events, topics of conversation, and key insights from the perspective of the person "
+                           "whose memory this is. Start the summary with 'My memory of this time is that...'"
+            },
+            {
+                "role": "user",
+                "content": text_to_summarize
+            }
+        ]
+        summary = await self._get_llm_response(messages)
+        return summary

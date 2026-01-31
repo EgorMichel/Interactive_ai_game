@@ -4,6 +4,7 @@ from uin_engine.application.commands.investigation import ExamineObjectCommand
 from uin_engine.domain.events import FactDiscovered
 from uin_engine.domain.entities import FactId, Clue
 from uin_engine.domain.value_objects import KnowledgeEntry
+from uin_engine.application.services.memory_service import MemoryService
 from typing import List
 
 
@@ -16,17 +17,18 @@ class ExamineObjectHandler:
     Allows the player to examine an object in their current location
     and potentially discover new clues/facts.
     """
-    def __init__(self, world_repository: IWorldRepository, event_bus: IEventBus):
+    def __init__(self, world_repository: IWorldRepository, event_bus: IEventBus, memory_service: MemoryService):
         self._repo = world_repository
         self._bus = event_bus
+        self._memory_service = memory_service
 
     async def execute(self, command: ExamineObjectCommand) -> tuple[List[Clue], GameWorld]:
         """
         Executes the object examination logic.
-        1. Fetches world state.
-        2. Validates player and object.
-        3. Attempts to discover clues.
-        4. Updates player's knowledge (semantic) and memory (episodic).
+        1. Fetches world state and validates.
+        2. Attempts to discover clues.
+        3. Updates player's knowledge (semantic) and memory (episodic).
+        4. Triggers memory compression check for the player.
         5. Persists the world state and publishes events.
         """
         world = await self._repo.get_by_id(command.world_id)
@@ -59,13 +61,11 @@ class ExamineObjectHandler:
                 clue.is_found = True
                 discovered_clues.append(clue)
                 new_facts_for_player.append(clue.fact_id)
-                # Log detailed discovery to narrative memory
                 player.narrative_memory.append(
                     f"[{time_str}] I examined the {target_object.name} and discovered a clue: {clue.description}"
                 )
                 print(f"You discovered a clue: {clue.description}")
 
-        # If no new clues were found after checking all of them
         if not discovered_clues:
             player.narrative_memory.append(
                 f"[{time_str}] I examined the {target_object.name} but found nothing new."
@@ -86,8 +86,10 @@ class ExamineObjectHandler:
                 )
                 await self._bus.publish(event)
         else:
-            # If no new facts, we still need to save the world because narrative_memory was updated
             await self._repo.save(world)
         
+        # --- Trigger Memory Compression ---
+        self._memory_service.compress_memory_if_needed(world, player)
+
         return discovered_clues, world
 

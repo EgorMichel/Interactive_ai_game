@@ -46,3 +46,9 @@ class MockLLMService(ILLMService):
         Simply calls the single-response generator for each context in the batch.
         """
         return [await self.generate_dialogue(ctx) for ctx in contexts]
+
+    async def summarize(self, text_to_summarize: str) -> str:
+        """
+        Returns a hardcoded summary for testing purposes.
+        """
+        return f"This is a mock summary of the following text: {text_to_summarize[:30]}..."

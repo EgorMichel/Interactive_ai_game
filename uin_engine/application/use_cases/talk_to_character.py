@@ -4,6 +4,7 @@ from uin_engine.application.ports.llm_service import ILLMService, DialogueGenera
 from uin_engine.application.commands.dialogue import TalkToCharacterCommand
 from uin_engine.domain.events import DialogueOccurred
 from uin_engine.domain.value_objects import KnowledgeEntry
+from uin_engine.application.services.memory_service import MemoryService
 
 
 from uin_engine.domain.entities import DialogueEntry, GameWorld
@@ -19,10 +20,12 @@ class TalkToCharacterHandler:
         world_repository: IWorldRepository,
         event_bus: IEventBus,
         llm_service: ILLMService,
+        memory_service: MemoryService,
     ):
         self._repo = world_repository
         self._bus = event_bus
         self._llm = llm_service
+        self._memory_service = memory_service
 
     async def execute(self, command: TalkToCharacterCommand) -> tuple[DialogueGenerationResponse, GameWorld]:
         """
@@ -33,7 +36,8 @@ class TalkToCharacterHandler:
         4. Updates semantic memory (`knowledge`) for the character who learned the facts.
         5. Updates episodic memory (`narrative_memory`) for both participants.
         6. Publishes an event with revealed fact IDs.
-        7. Returns the response and the updated world.
+        7. Triggers memory compression if needed.
+        8. Returns the response and the updated world.
         """
         world = await self._repo.get_by_id(command.world_id)
         if not world:
@@ -107,6 +111,10 @@ class TalkToCharacterHandler:
             revealed_fact_ids=response.newly_revealed_facts
         )
         await self._bus.publish(event)
+        
+        # --- Trigger Memory Compression ---
+        self._memory_service.compress_memory_if_needed(world, speaker)
+        self._memory_service.compress_memory_if_needed(world, listener)
 
         return response, world
 

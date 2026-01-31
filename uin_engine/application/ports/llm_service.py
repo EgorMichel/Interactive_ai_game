@@ -54,3 +54,10 @@ class ILLMService(ABC):
         Generates multiple dialogue responses in a single batch call for efficiency.
         """
         pass
+
+    @abstractmethod
+    async def summarize(self, text_to_summarize: str) -> str:
+        """
+        Summarizes a given block of text.
+        """
+        pass
