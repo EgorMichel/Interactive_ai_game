@@ -20,6 +20,8 @@ class DialogueGenerationContext(BaseModel):
     listener_knowledge: str # A summary of what the listener knows.
     recent_dialogue_history: str
     current_topic: str
+    all_scenario_facts: str # A string listing all possible facts in the scenario.
+
 
 
 class DialogueGenerationResponse(BaseModel):

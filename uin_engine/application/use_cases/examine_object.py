@@ -23,14 +23,11 @@ class ExamineObjectHandler:
     async def execute(self, command: ExamineObjectCommand) -> tuple[List[Clue], GameWorld]:
         """
         Executes the object examination logic.
-
-        1. Fetches the world state.
-        2. Validates player and object existence/location.
+        1. Fetches world state.
+        2. Validates player and object.
         3. Attempts to discover clues.
-        4. Updates player knowledge with newly found facts.
-        5. Persists the world state.
-        6. Publishes FactDiscovered events.
-        7. Returns a list of newly discovered clues and the updated world.
+        4. Updates player's knowledge (semantic) and memory (episodic).
+        5. Persists the world state and publishes events.
         """
         world = await self._repo.get_by_id(command.world_id)
         if not world:
@@ -53,23 +50,32 @@ class ExamineObjectHandler:
         if not target_object:
             raise ValueError(f"Object with id '{command.object_id}' not found in {current_location.name}.")
 
+        time_str = world.game_time.strftime('%H:%M')
         discovered_clues: List[Clue] = []
         new_facts_for_player: List[FactId] = []
 
         for clue in target_object.clues:
-            if not clue.is_found: # Only discover if not already found
-                # For now, always discover the clue (difficulty always passed)
-                # In the future, this is where skill checks/difficulty would come in
-                clue.is_found = True # Mark clue as found
+            if not clue.is_found:
+                clue.is_found = True
                 discovered_clues.append(clue)
                 new_facts_for_player.append(clue.fact_id)
+                # Log detailed discovery to narrative memory
+                player.narrative_memory.append(
+                    f"[{time_str}] I examined the {target_object.name} and discovered a clue: {clue.description}"
+                )
                 print(f"You discovered a clue: {clue.description}")
+
+        # If no new clues were found after checking all of them
+        if not discovered_clues:
+            player.narrative_memory.append(
+                f"[{time_str}] I examined the {target_object.name} but found nothing new."
+            )
 
         if new_facts_for_player:
             for fact_id in new_facts_for_player:
                 player.knowledge[fact_id] = KnowledgeEntry(fact_id=fact_id, certainty=1.0)
             
-            await self._repo.save(world) # Save world state after updating player knowledge
+            await self._repo.save(world)
 
             for fact_id in new_facts_for_player:
                 event = FactDiscovered(
@@ -79,6 +85,9 @@ class ExamineObjectHandler:
                     source=f"examining {target_object.name}"
                 )
                 await self._bus.publish(event)
+        else:
+            # If no new facts, we still need to save the world because narrative_memory was updated
+            await self._repo.save(world)
         
         return discovered_clues, world
 

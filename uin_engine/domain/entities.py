@@ -61,7 +61,12 @@ class Character(BaseModel):
     description: str
     location_id: LocationId  # The current location of the character
 
+    # Level 3 Memory: Semantic (Structured Facts)
     knowledge: Dict[FactId, KnowledgeEntry] = Field(default_factory=dict)
+    
+    # Level 2 Memory: Episodic (Narrative Log)
+    narrative_memory: List[str] = Field(default_factory=list)
+
     relationships: Dict[CharacterId, Relationship] = Field(default_factory=dict)
     emotional_state: Dict[str, float] = Field(default_factory=dict)  # e.g., {"fear": 0.8, "trust": 0.2}
     goals: List[str] = Field(default_factory=list)
