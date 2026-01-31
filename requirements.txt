@@ -1,0 +1,18 @@
+# Backend
+fastapi
+sqlalchemy[asyncio]
+pydantic
+
+# DI
+dependency-injector
+
+# LLM
+litellm
+
+# Config
+pyyaml
+pydantic-settings
+
+# Testing
+pytest
+pytest-asyncio

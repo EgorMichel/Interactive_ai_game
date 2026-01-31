@@ -1,0 +1,119 @@
+id: yacht_mystery
+name: The Nereid Yacht Mystery
+description: A murder mystery unfolds on a luxurious yacht.
+start_location: bridge
+player_id: player
+
+facts:
+  - id: arthur_is_dead
+    content: "Arthur Van der Lunden was found dead in his cabin."
+  - id: sophie_is_nervous
+    content: "Sophie acts very nervous and keeps looking over her shoulder."
+  - id: deck_has_footprints
+    content: "There are faint footprints on the deck."
+  - id: bloody_knife
+    content: "A small, ornate knife with a bloodstain on its blade was found under Arthur's desk."
+  - id: sophie_earring
+    content: "A distinctive earring, known to belong to Sophie, was found near Arthur's body."
+
+locations:
+  - id: bridge
+    name: Bridge
+    description: "The command center of the yacht. You see the ship's wheel and various navigational instruments."
+    connections: ["deck", "lounge", "captain_cabin"]
+    objects:
+      - id: ship_wheel
+        name: Ship's Wheel
+        description: "The large, polished wooden wheel used to steer the yacht. It feels cold to the touch."
+        clues: []
+  - id: deck
+    name: Deck
+    description: "The open-air deck. A salty wind blows. You see the ocean stretching to the horizon. There's a wet patch near the railing."
+    connections: ["bridge", "lounge"]
+    objects:
+      - id: railing
+        name: Railing
+        description: "The polished brass railing of the deck. Slightly damp."
+        clues:
+          - fact_id: deck_has_footprints
+            description: "You notice faint, muddy footprints leading towards the stern, almost washed away by the waves."
+            difficulty: 0.3
+  - id: lounge
+    name: Lounge
+    description: "A luxurious lounge with comfortable sofas and a small bar. There's a faint smell of spilled wine."
+    connections: ["bridge", "deck"]
+    objects:
+      - id: bar
+        name: Bar
+        description: "A well-stocked bar with various bottles and glasses. A few glasses are still dirty from last night."
+        clues: []
+      - id: sofa
+        name: Sofa
+        description: "A plush, velvet sofa. There's a loose thread on one of the cushions."
+        clues: []
+  - id: captain_cabin
+    name: Captain's Cabin
+    description: "The Captain's private quarters, tidy and efficient. A strong smell of tobacco hangs in the air."
+    connections: ["bridge"]
+    objects:
+      - id: desk
+        name: Desk
+        description: "A sturdy wooden desk covered with charts and navigation tools. A small drawer is ajar."
+        clues:
+          - fact_id: bloody_knife
+            description: "Tucked behind a stack of charts, you find a small, ornate knife with a bloodstain on its blade."
+            difficulty: 0.6
+          - fact_id: sophie_earring
+            description: "Under the desk, near the leg, you spot a distinctive earring. It looks like the one Sophie wears."
+            difficulty: 0.8
+
+
+characters:
+  - id: sophie
+    name: Sophie
+    description: "A nervous artist, she keeps looking over her shoulder. She seems to be hiding something."
+    initial_location: lounge
+    goals: ["Protect my secret.", "Avoid suspicion."]
+    initial_knowledge: 
+      sophie_is_nervous: 1.0
+    schedule:
+      - time: "08:00"
+        action_type: "move"
+        target: "deck"
+      - time: "08:10"
+        action_type: "idle"
+      - time: "08:20"
+        action_type: "move"
+        target: "lounge"
+  - id: mark
+    name: Mark
+    description: "The yacht's stoic and observant first mate."
+    initial_location: bridge
+    goals: ["Maintain order.", "Protect the Captain."]
+    initial_knowledge:
+      arthur_is_dead: 1.0
+    schedule:
+      - time: "08:00"
+        action_type: "idle"
+      - time: "08:10"
+        action_type: "move"
+        target: "deck"
+      - time: "08:20"
+        action_type: "move"
+        target: "bridge"
+  - id: captain
+    name: Captain
+    description: "A grizzled old sea dog, fiercely loyal to the yacht's owner, Arthur."
+    initial_location: captain_cabin
+    goals: ["Find Arthur's killer.", "Protect the yacht's reputation."]
+    initial_knowledge:
+      arthur_is_dead: 1.0
+      bloody_knife: 0.8 # Captain might know about it with some certainty
+    schedule:
+      - time: "08:00"
+        action_type: "idle"
+      - time: "08:10"
+        action_type: "move"
+        target: "bridge"
+      - time: "08:20"
+        action_type: "idle"
