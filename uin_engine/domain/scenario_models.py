@@ -56,6 +56,12 @@ class ConfigCharacter(BaseModel):
     # TODO: Add personality, emotional state, relationships
 
 
+class ConfigSolution(BaseModel):
+    """Configuration model for the scenario's solution."""
+    killer_id: CharacterId
+    required_fact_ids: List[FactId] = Field(default_factory=list)
+
+
 class ConfigScenario(BaseModel):
     """
     The top-level configuration model for an entire game scenario.
@@ -70,3 +76,4 @@ class ConfigScenario(BaseModel):
     locations: List[ConfigLocation] = Field(default_factory=list)
     characters: List[ConfigCharacter] = Field(default_factory=list)
     facts: List[ConfigFact] = Field(default_factory=list)
+    solution: Optional[ConfigSolution] = None

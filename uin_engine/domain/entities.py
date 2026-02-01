@@ -94,5 +94,17 @@ class GameWorld(BaseModel):
     characters: Dict[CharacterId, Character] = Field(default_factory=dict)
     facts: Dict[FactId, Fact] = Field(default_factory=dict)
     game_time: time = Field(default_factory=lambda: time(8, 0))  # Start at 08:00 by default
-    dialogue_history: List[DialogueEntry] = Field(default_factory=list) # Add dialogue history
+    dialogue_history: List[DialogueEntry] = Field(default_factory=list)
+    solution: Optional['Solution'] = None
+
+
+class Solution(BaseModel):
+    """Represents the solution to the mystery."""
+    killer_id: CharacterId
+    required_fact_ids: List[FactId] = Field(default_factory=list)
+
+# This is a forward reference fix. Pydantic needs to know about the Solution model
+# before it's used in GameWorld. By updating the forward references after both are
+# defined, we resolve the dependency cycle.
+GameWorld.model_rebuild()
 

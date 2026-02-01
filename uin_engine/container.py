@@ -3,6 +3,7 @@ from dependency_injector import containers, providers
 from uin_engine.application.use_cases.move_character import MoveCharacterHandler
 from uin_engine.application.use_cases.talk_to_character import TalkToCharacterHandler
 from uin_engine.application.use_cases.examine_object import ExamineObjectHandler
+from uin_engine.application.use_cases.accuse_character import AccuseCharacterHandler
 from uin_engine.application.services.npc_behavior_system import NPCBehaviorSystem
 from uin_engine.application.services.memory_service import MemoryService
 from uin_engine.infrastructure.event_bus.local_event_bus import LocalEventBus
@@ -48,14 +49,12 @@ class Container(containers.DeclarativeContainer):
     # The container automatically injects the required dependencies.
     move_character_handler = providers.Factory(
         MoveCharacterHandler,
-        world_repository=world_repository,
         event_bus=event_bus,
         memory_service=memory_service,
     )
 
     talk_to_character_handler = providers.Factory(
         TalkToCharacterHandler,
-        world_repository=world_repository,
         event_bus=event_bus,
         llm_service=llm_service,
         memory_service=memory_service,
@@ -63,14 +62,17 @@ class Container(containers.DeclarativeContainer):
 
     examine_object_handler = providers.Factory(
         ExamineObjectHandler,
-        world_repository=world_repository,
         event_bus=event_bus,
         memory_service=memory_service,
+    )
+
+    accuse_character_handler = providers.Factory(
+        AccuseCharacterHandler,
+        world_repository=world_repository,
     )
     
     npc_behavior_system = providers.Singleton(
         NPCBehaviorSystem,
-        world_repository=world_repository,
         move_character_handler=move_character_handler,
     )
 

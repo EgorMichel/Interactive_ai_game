@@ -1,12 +1,9 @@
-from uin_engine.application.ports.world_repository import IWorldRepository
 from uin_engine.application.ports.event_bus import IEventBus
 from uin_engine.application.ports.llm_service import ILLMService, DialogueGenerationContext, DialogueGenerationResponse
 from uin_engine.application.commands.dialogue import TalkToCharacterCommand
 from uin_engine.domain.events import DialogueOccurred
 from uin_engine.domain.value_objects import KnowledgeEntry
 from uin_engine.application.services.memory_service import MemoryService
-
-
 from uin_engine.domain.entities import DialogueEntry, GameWorld
 
 
@@ -17,20 +14,18 @@ class TalkToCharacterHandler:
     """
     def __init__(
         self,
-        world_repository: IWorldRepository,
         event_bus: IEventBus,
         llm_service: ILLMService,
         memory_service: MemoryService,
     ):
-        self._repo = world_repository
         self._bus = event_bus
         self._llm = llm_service
         self._memory_service = memory_service
 
-    async def execute(self, command: TalkToCharacterCommand) -> tuple[DialogueGenerationResponse, GameWorld]:
+    async def execute(self, command: TalkToCharacterCommand, world: GameWorld) -> tuple[DialogueGenerationResponse, GameWorld]:
         """
-        Executes the dialogue logic.
-        1. Fetches state and validates.
+        Executes the dialogue logic on the given world object.
+        1. Validates state.
         2. Builds context for the LLM, including all possible facts for extraction.
         3. Calls the LLM service to get a response and potentially revealed facts.
         4. Updates semantic memory (`knowledge`) for the character who learned the facts.
@@ -39,10 +34,6 @@ class TalkToCharacterHandler:
         7. Triggers memory compression if needed.
         8. Returns the response and the updated world.
         """
-        world = await self._repo.get_by_id(command.world_id)
-        if not world:
-            raise ValueError(f"World with id '{command.world_id}' not found.")
-
         speaker = world.characters.get(command.speaker_id)
         if not speaker:
             raise ValueError(f"Speaker with id '{command.speaker_id}' not found.")
@@ -101,9 +92,7 @@ class TalkToCharacterHandler:
             speaker_id=listener.id, listener_id=speaker.id, message=response.text, game_time=world.game_time
         ))
 
-        # --- Persist and Notify ---
-        await self._repo.save(world)
-
+        # --- Notify and Compress ---
         event = DialogueOccurred(
             speaker_id=speaker.id,
             listener_id=listener.id,

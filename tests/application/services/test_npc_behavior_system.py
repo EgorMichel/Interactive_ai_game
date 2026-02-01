@@ -58,7 +58,7 @@ async def test_update_game_time(test_world):
     await repo.save(test_world)
     
     move_handler = AsyncMock(spec=MoveCharacterHandler)
-    system = NPCBehaviorSystem(world_repository=repo, move_character_handler=move_handler)
+    system = NPCBehaviorSystem(move_character_handler=move_handler)
 
     initial_time = test_world.game_time
     updated_world = await system.update_game_time(test_world)
@@ -77,7 +77,7 @@ async def test_execute_npc_behaviors_moves_character(test_world):
     await repo.save(test_world) # Save initial world state
 
     move_handler = AsyncMock(spec=MoveCharacterHandler) # Mock the handler
-    system = NPCBehaviorSystem(world_repository=repo, move_character_handler=move_handler)
+    system = NPCBehaviorSystem(move_character_handler=move_handler)
 
     # Set game time to trigger Sophie's move (08:10)
     test_world.game_time = time(8, 10)
@@ -109,7 +109,7 @@ async def test_execute_npc_behaviors_no_action_if_time_does_not_match(test_world
     await repo.save(test_world)
 
     move_handler = AsyncMock(spec=MoveCharacterHandler)
-    system = NPCBehaviorSystem(world_repository=repo, move_character_handler=move_handler)
+    system = NPCBehaviorSystem(move_character_handler=move_handler)
 
     # Set game time to something not in schedule (e.g., 08:05)
     test_world.game_time = time(8, 5)

@@ -2,11 +2,13 @@ import pytest
 from unittest.mock import AsyncMock
 
 from uin_engine.domain.entities import GameWorld, Character, Location, Fact, Clue, GameObject, CharacterId, LocationId, FactId
-from uin_engine.domain.events import FactDiscovered
 from uin_engine.infrastructure.repositories.in_memory_world_repository import InMemoryWorldRepository
 from uin_engine.infrastructure.event_bus.local_event_bus import LocalEventBus
 from uin_engine.application.use_cases.examine_object import ExamineObjectHandler
 from uin_engine.application.commands.investigation import ExamineObjectCommand
+from uin_engine.application.services.memory_service import MemoryService
+from uin_engine.domain.events import FactDiscovered # Added missing import
+
 
 
 @pytest.mark.asyncio
@@ -18,7 +20,8 @@ async def test_examine_object_discovers_new_clues():
     # 1. ARRANGE
     world_repo = InMemoryWorldRepository()
     event_bus = LocalEventBus()
-    handler = ExamineObjectHandler(world_repository=world_repo, event_bus=event_bus)
+    mock_memory_service = AsyncMock(spec=MemoryService) # Mock MemoryService
+    handler = ExamineObjectHandler(event_bus=event_bus, memory_service=mock_memory_service)
 
     event_spy = AsyncMock()
     event_bus.subscribe(FactDiscovered, event_spy)
@@ -42,7 +45,7 @@ async def test_examine_object_discovers_new_clues():
         connections=[],
         objects=[test_object]
     )
-    test_player = Character(id=player_id, name="Test Player", description="", location_id=loc_id)
+    test_player = Character(id=player_id, name="Test Player", description="player description", location_id=loc_id) # Added description
 
     test_world = GameWorld(
         id="test_world",
@@ -62,7 +65,7 @@ async def test_examine_object_discovers_new_clues():
     )
 
     # 2. ACT
-    discovered_clues = await handler.execute(command)
+    discovered_clues, updated_world = await handler.execute(command, test_world) # Pass world to execute
 
     # 3. ASSERT
     # Assert clues were returned
@@ -70,8 +73,7 @@ async def test_examine_object_discovers_new_clues():
     assert discovered_clues[0].fact_id == fact2_id
     assert discovered_clues[0].is_found is True # Clue should be marked as found
 
-    # Assert player knowledge was updated
-    updated_world = await world_repo.get_by_id("test_world")
+    # Assert player knowledge was updated (using updated_world from handler)
     updated_player = updated_world.characters[player_id]
     assert fact2_id in updated_player.knowledge
     assert updated_player.knowledge[fact2_id].certainty == 1.0
@@ -84,6 +86,9 @@ async def test_examine_object_discovers_new_clues():
     assert published_event.fact_id == fact2_id
     assert published_event.location_id == loc_id
     assert published_event.source == f"examining {test_object.name}"
+    
+    # Assert memory service was called
+    mock_memory_service.compress_memory_if_needed.assert_called_once_with(updated_world, updated_player)
 
 
 @pytest.mark.asyncio
@@ -95,7 +100,8 @@ async def test_examine_object_no_new_clues():
     # 1. ARRANGE
     world_repo = InMemoryWorldRepository()
     event_bus = LocalEventBus()
-    handler = ExamineObjectHandler(world_repository=world_repo, event_bus=event_bus)
+    mock_memory_service = AsyncMock(spec=MemoryService) # Mock MemoryService
+    handler = ExamineObjectHandler(event_bus=event_bus, memory_service=mock_memory_service)
 
     event_spy = AsyncMock()
     event_bus.subscribe(FactDiscovered, event_spy)
@@ -112,7 +118,7 @@ async def test_examine_object_no_new_clues():
         connections=[],
         objects=[test_object]
     )
-    test_player = Character(id=player_id, name="Test Player", description="", location_id=loc_id)
+    test_player = Character(id=player_id, name="Test Player", description="player description", location_id=loc_id) # Added description
 
     test_world = GameWorld(
         id="test_world",
@@ -132,11 +138,12 @@ async def test_examine_object_no_new_clues():
     )
 
     # 2. ACT
-    discovered_clues = await handler.execute(command)
+    discovered_clues, updated_world = await handler.execute(command, test_world) # Pass world to execute
 
     # 3. ASSERT
     assert len(discovered_clues) == 0
     event_spy.assert_not_called()
+    mock_memory_service.compress_memory_if_needed.assert_called_once_with(updated_world, updated_world.characters[player_id]) # Check call
 
 
 @pytest.mark.asyncio
@@ -147,7 +154,8 @@ async def test_examine_object_already_found_clues():
     # 1. ARRANGE
     world_repo = InMemoryWorldRepository()
     event_bus = LocalEventBus()
-    handler = ExamineObjectHandler(world_repository=world_repo, event_bus=event_bus)
+    mock_memory_service = AsyncMock(spec=MemoryService) # Mock MemoryService
+    handler = ExamineObjectHandler(event_bus=event_bus, memory_service=mock_memory_service)
 
     event_spy = AsyncMock()
     event_bus.subscribe(FactDiscovered, event_spy)
@@ -168,7 +176,7 @@ async def test_examine_object_already_found_clues():
         connections=[],
         objects=[test_object]
     )
-    test_player = Character(id=player_id, name="Test Player", description="", location_id=loc_id)
+    test_player = Character(id=player_id, name="Test Player", description="player description", location_id=loc_id) # Added description
 
     test_world = GameWorld(
         id="test_world",
@@ -188,14 +196,15 @@ async def test_examine_object_already_found_clues():
     )
 
     # 2. ACT
-    discovered_clues = await handler.execute(command)
+    discovered_clues, updated_world = await handler.execute(command, test_world) # Pass world to execute
 
     # 3. ASSERT
     assert len(discovered_clues) == 0 # No new clues discovered
     event_spy.assert_not_called() # No new event published
 
     # Player knowledge should not have been changed by this handler (assuming it was already there)
-    updated_world = await world_repo.get_by_id("test_world")
     updated_player = updated_world.characters[player_id]
     assert fact_id not in updated_player.knowledge # Player doesn't get it again if it was already discovered and added
+    
+    mock_memory_service.compress_memory_if_needed.assert_called_once_with(updated_world, updated_player) # Check call
 

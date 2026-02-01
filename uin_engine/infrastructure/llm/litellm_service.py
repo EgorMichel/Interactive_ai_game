@@ -62,21 +62,28 @@ class LitellmService(ILLMService):
         Transforms our DialogueGenerationContext into the message format expected by LLMs,
         including instructions for fact extraction.
         """
-        system_message = (
-            f"You are {context.listener_name}, a character in a mystery game. "
-            f"Your description: {context.listener_description}. "
-            f"Your goals: {', '.join(context.listener_goals)}. "
-            f"Your current knowledge: {context.listener_knowledge}. "
-            "Respond naturally, stay in character, and keep your answers concise. "
-            f"You are talking to {context.speaker_name}.\n\n"
-            "IMPORTANT: If your response, or the user's message to you, directly reveals or confirms a crucial piece of information, "
-            "you MUST append a special tag `[FACT_REVEALED: <fact_id>]` on a new line at the very end of your response. "
-            "Do not add any text after the tag. You can add multiple tags if multiple facts are revealed.\n"
-            "Example: If you say 'I saw a bloody knife...', you must append `[FACT_REVEALED: bloody_knife]`.\n\n"
-            "Here is the list of possible facts you can reveal:\n"
-            f"{context.all_scenario_facts}"
-        )
+        system_message_parts = [
+            f"You are {context.listener_name}, a character in a mystery game. ",
+            f"Your description: {context.listener_description}. ",
+            f"Your goals: {', '.join(context.listener_goals)}. ",
+            f"Your current knowledge: {context.listener_knowledge}. ",
+            "Respond naturally, stay in character, and keep your answers concise. ",
+            f"You are talking to {context.speaker_name}."
+        ]
+
+        # Only add fact-revelation instructions if there are facts to reveal
+        if context.all_scenario_facts and context.all_scenario_facts.strip():
+            system_message_parts.append(
+                "\n\nIMPORTANT: If your response, or the user's message to you, directly reveals or confirms a crucial piece of information, "
+                "you MUST append a special tag `[FACT_REVEALED: <fact_id>]` on a new line at the very end of your response. "
+                "Do not add any text after the tag. You can add multiple tags if multiple facts are revealed.\n"
+                "Example: If you say 'I saw a bloody knife...', you must append `[FACT_REVEALED: bloody_knife]`.\n\n"
+                "Here is the list of possible facts you can reveal:\n"
+                f"{context.all_scenario_facts}"
+            )
         
+        system_message = "".join(system_message_parts)
+
         if context.recent_dialogue_history:
             system_message += (
                 f"\n\nHere is the recent conversation history:\n"

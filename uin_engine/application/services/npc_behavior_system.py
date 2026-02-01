@@ -3,7 +3,6 @@ from datetime import time, timedelta, datetime
 from typing import Dict, List, Optional
 
 from uin_engine.domain.entities import GameWorld, CharacterId, Character
-from uin_engine.application.ports.world_repository import IWorldRepository
 from uin_engine.application.commands.character import MoveCharacterCommand
 from uin_engine.application.use_cases.move_character import MoveCharacterHandler
 
@@ -17,11 +16,9 @@ class NPCBehaviorSystem:
     """
     def __init__(
         self,
-        world_repository: IWorldRepository,
         move_character_handler: MoveCharacterHandler,
         # Potentially other handlers for talk, investigate, etc.
     ):
-        self._repo = world_repository
         self._move_handler = move_character_handler
         # self._talk_handler = talk_character_handler
 
@@ -48,7 +45,10 @@ class NPCBehaviorSystem:
         current_game_time = world.game_time
         print(f"[{current_game_time.strftime('%H:%M')}] NPC Update Cycle:")
 
-        for character_id, character in world.characters.items():
+        # Create a copy of characters to iterate over, as the underlying world may be modified
+        characters_to_process = list(world.characters.items())
+
+        for character_id, character in characters_to_process:
             if character_id == world.player_id: # Skip player character
                 continue
             
@@ -73,7 +73,7 @@ class NPCBehaviorSystem:
                     character_id=character.id,
                     target_location_id=entry.target
                 )
-                world = await self._move_handler.execute(command)
+                world = await self._move_handler.execute(command, world)
                 print(f"    - {character.name} moved to {entry.target}.")
             except ValueError as e:
                 print(f"    - {character.name} failed to move to {entry.target}: {e}")

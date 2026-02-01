@@ -107,6 +107,11 @@ class ScenarioLoader:
             characters=characters_dict,
             facts=facts_dict,
         )
+
+        # Convert solution if it exists
+        if config.solution:
+            game_world.solution = Solution(**config.solution.model_dump())
+
         return game_world
 
 

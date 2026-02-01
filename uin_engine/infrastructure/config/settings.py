@@ -11,7 +11,11 @@ class LLMSettings(BaseSettings):
 
     api_key: str = "" # LiteLLM can pick this up from OS environment, but good to have explicit
     api_base: Optional[str] = None # Base URL for LLM API (e.g., for local models or custom endpoints)
-    model_name: str = "gpt-3.5-turbo" # Default model to use
+    
+    # This is a safe default. It's STRONGLY recommended to set a specific,
+    # provider-supported model in your .env file, as this default may not
+    # be compatible with all third-party API endpoints.
+    model_name: str = "openai/gpt-4o" # Default model to use
 
     # LiteLLM specific settings
     # For example, if using Azure:

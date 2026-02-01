@@ -9,6 +9,7 @@ from uin_engine.infrastructure.event_bus.local_event_bus import LocalEventBus
 from uin_engine.infrastructure.llm.mock_llm_service import MockLLMService
 from uin_engine.application.use_cases.talk_to_character import TalkToCharacterHandler
 from uin_engine.application.commands.dialogue import TalkToCharacterCommand
+from uin_engine.application.services.memory_service import MemoryService # Import MemoryService
 
 @pytest.fixture
 def setup():
@@ -16,10 +17,11 @@ def setup():
     world_repo = InMemoryWorldRepository()
     event_bus = LocalEventBus()
     llm_service = MockLLMService()
+    mock_memory_service = AsyncMock(spec=MemoryService) # Mock MemoryService
     handler = TalkToCharacterHandler(
-        world_repository=world_repo,
         event_bus=event_bus,
-        llm_service=llm_service
+        llm_service=llm_service,
+        memory_service=mock_memory_service,
     )
     
     player_id = CharacterId("player")
@@ -49,7 +51,8 @@ def setup():
         "handler": handler,
         "world": test_world,
         "player_id": player_id,
-        "npc_id": npc_id
+        "npc_id": npc_id,
+        "mock_memory_service": mock_memory_service # Return mock
     }
 
 
@@ -74,8 +77,8 @@ async def test_talk_to_character_successfully(setup):
     )
 
     # ACT
-    response, _ = await setup["handler"].execute(command)
-
+    response, world = await setup["handler"].execute(command, setup["world"]) # Pass world
+    
     # ASSERT
     assert response.text == "This is a simple response."
     event_spy.assert_called_once()
@@ -83,6 +86,7 @@ async def test_talk_to_character_successfully(setup):
     assert isinstance(published_event, DialogueOccurred)
     assert published_event.speaker_id == setup["player_id"]
     assert not published_event.revealed_fact_ids  # No facts should be revealed
+    setup["mock_memory_service"].compress_memory_if_needed.assert_called() # Memory service should be called
 
 
 @pytest.mark.asyncio
@@ -104,7 +108,7 @@ async def test_talk_to_character_populates_narrative_memory(setup):
     )
 
     # ACT
-    response, world = await setup["handler"].execute(command)
+    response, world = await setup["handler"].execute(command, setup["world"]) # Pass world
     
     # ASSERT
     speaker = world.characters[setup["player_id"]]
@@ -121,6 +125,7 @@ async def test_talk_to_character_populates_narrative_memory(setup):
     # Check listener's memory
     assert f'{speaker.name} said to me: "{command.message}"' in listener.narrative_memory[0]
     assert f'I replied to {speaker.name}: "{response.text}"' in listener.narrative_memory[1]
+    setup["mock_memory_service"].compress_memory_if_needed.assert_called() # Memory service should be called
 
 
 @pytest.mark.asyncio
@@ -145,7 +150,7 @@ async def test_talk_to_character_reveals_and_adds_fact(setup):
     )
 
     # ACT
-    response, world = await setup["handler"].execute(command)
+    response, world = await setup["handler"].execute(command, setup["world"]) # Pass world
 
     # ASSERT
     updated_player = world.characters[setup["player_id"]]
@@ -166,3 +171,4 @@ async def test_talk_to_character_reveals_and_adds_fact(setup):
     assert "Sophie replied to me" in updated_player.narrative_memory[1]
     assert "I learned something new" in updated_player.narrative_memory[2]
     assert "A bloody knife was found" in updated_player.narrative_memory[2]
+    setup["mock_memory_service"].compress_memory_if_needed.assert_called() # Memory service should be called

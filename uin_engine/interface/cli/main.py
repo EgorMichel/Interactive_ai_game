@@ -7,7 +7,7 @@ from uin_engine.container import container
 from uin_engine.domain.entities import GameWorld, Character, Location, CharacterId, LocationId, Fact
 from uin_engine.application.commands.character import MoveCharacterCommand
 from uin_engine.application.commands.dialogue import TalkToCharacterCommand
-from uin_engine.application.commands.investigation import ExamineObjectCommand
+from uin_engine.application.commands.investigation import ExamineObjectCommand, AccuseCharacterCommand
 from uin_engine.infrastructure.config.scenario_loader import ScenarioLoader
 from uin_engine.application.services.npc_behavior_system import GAME_TIME_INCREMENT_MINUTES
 
@@ -35,16 +35,18 @@ async def main():
     move_handler = container.move_character_handler()
     talk_handler = container.talk_to_character_handler()
     examine_handler = container.examine_object_handler()
+    accuse_handler = container.accuse_character_handler()
     npc_behavior_system = container.npc_behavior_system()
 
     print("\n--- UIN Engine ---")
     print("Welcome to 'The Nereid Yacht Mystery'.")
-    print("Available commands: 'look', 'move <location>', 'talk <character> <message>', 'examine <object>', 'quit'")
-
-    world = await repo.get_by_id(WORLD_ID) # Initial world load
+    print("Available commands: 'look', 'move <location>', 'talk <character> <message>', 'examine <object>', 'accuse <character>', 'quit'")
 
     while True:
         try:
+            # Load the current world state at the beginning of each turn
+            world = await repo.get_by_id(WORLD_ID)
+
             # --- Describe the current situation ---
             player = world.characters[PLAYER_ID]
             current_location = world.locations[player.location_id]
@@ -77,7 +79,10 @@ async def main():
                 break
             
             elif verb == "look":
-                action_succeeded = True
+                # Looking doesn't advance time, but we mark it as "successful" to avoid error messages
+                # The time advancement logic is skipped because no state is saved.
+                # To make 'look' advance time, set action_succeeded = True
+                continue
 
             elif verb == "move":
                 if len(parts) < 2:
@@ -89,7 +94,7 @@ async def main():
                         print(f"Location '{target_loc_name}' not found.")
                     else:
                         command = MoveCharacterCommand(world_id=WORLD_ID, character_id=PLAYER_ID, target_location_id=target_loc_id)
-                        world = await move_handler.execute(command)
+                        world = await move_handler.execute(command, world)
                         print(f"You move to the {target_loc_name}.")
                         action_succeeded = True
             
@@ -104,8 +109,8 @@ async def main():
                         print(f"Character '{target_char_name}' not found here.")
                     else:
                         command = TalkToCharacterCommand(world_id=WORLD_ID, speaker_id=PLAYER_ID, listener_id=target_char.id, message=message)
-                        response, world = await talk_handler.execute(command)
-                        print(f"{target_char.name}: \"{response.text}\""")
+                        response, world = await talk_handler.execute(command, world)
+                        print(f"{target_char.name}: \"{response.text}\"")
                         action_succeeded = True
 
             elif verb == "examine":
@@ -118,15 +123,31 @@ async def main():
                         print(f"Object '{target_obj_name}' not found in {current_location.name}.")
                     else:
                         command = ExamineObjectCommand(world_id=WORLD_ID, player_id=PLAYER_ID, object_id=target_object.id, location_id=current_location.id)
-                        discovered_clues, world = await examine_handler.execute(command)
+                        discovered_clues, world = await examine_handler.execute(command, world)
                         if not discovered_clues:
                             print(f"You examine the {target_obj_name} carefully, but find nothing new.")
                         action_succeeded = True
             
+            elif verb == "accuse":
+                if len(parts) < 2:
+                    print("Accuse who? 'accuse <character>'")
+                else:
+                    accused_name = " ".join(parts[1:])
+                    accused_char = next((c for c in world.characters.values() if c.name.lower() == accused_name), None)
+                    if not accused_char:
+                        print(f"Character '{accused_name}' not found in the world.")
+                    else:
+                        command = AccuseCharacterCommand(world_id=WORLD_ID, player_id=PLAYER_ID, accused_character_id=accused_char.id)
+                        result = await accuse_handler.execute(command)
+                        print("\n" + "*"*10 + " The End " + "*"*10)
+                        print(result.message)
+                        print("*"*29)
+                        break # End the game
+
             else:
                 print(f"Unknown command: '{verb}'")
 
-            # --- NPC Behavior Update (only if player action was valid) ---
+            # --- Game State Update (only if player action was valid and changed state) ---
             if action_succeeded:
                 world = await npc_behavior_system.update_game_time(world)
                 world = await npc_behavior_system.execute_npc_behaviors(world)

@@ -7,6 +7,7 @@ from uin_engine.infrastructure.repositories.in_memory_world_repository import In
 from uin_engine.infrastructure.event_bus.local_event_bus import LocalEventBus
 from uin_engine.application.use_cases.move_character import MoveCharacterHandler
 from uin_engine.application.commands.character import MoveCharacterCommand
+from uin_engine.application.services.memory_service import MemoryService # Import MemoryService
 
 @pytest.mark.asyncio
 async def test_move_character_successfully():
@@ -17,7 +18,8 @@ async def test_move_character_successfully():
     # 1. ARRANGE
     world_repo = InMemoryWorldRepository()
     event_bus = LocalEventBus()
-    handler = MoveCharacterHandler(world_repository=world_repo, event_bus=event_bus)
+    mock_memory_service = AsyncMock(spec=MemoryService) # Mock MemoryService
+    handler = MoveCharacterHandler(event_bus=event_bus, memory_service=mock_memory_service)
 
     # Create a mock handler to spy on the event bus
     event_handler_mock = AsyncMock()
@@ -37,7 +39,7 @@ async def test_move_character_successfully():
             end_loc_id: Location(id=end_loc_id, name="Engine Room", description="..."),
         },
         characters={
-            char_id: Character(id=char_id, name="Player", description="...", location_id=start_loc_id)
+            char_id: Character(id=char_id, name="Player", description="player description", location_id=start_loc_id) # Added description
         }
     )
     await world_repo.save(test_world)
@@ -49,11 +51,10 @@ async def test_move_character_successfully():
     )
 
     # 2. ACT
-    await handler.execute(command)
+    updated_world = await handler.execute(command, test_world) # Pass world to execute
 
     # 3. ASSERT
-    # Assert world state has changed correctly
-    updated_world = await world_repo.get_by_id("test_scenario")
+    # Assert world state has changed correctly (using updated_world from handler)
     moved_character = updated_world.characters.get(char_id)
     assert moved_character.location_id == end_loc_id
 
@@ -65,6 +66,9 @@ async def test_move_character_successfully():
     assert published_event.from_location_id == start_loc_id
     assert published_event.to_location_id == end_loc_id
 
+    # Assert memory service was called
+    mock_memory_service.compress_memory_if_needed.assert_called_once_with(updated_world, moved_character)
+
 
 @pytest.mark.asyncio
 async def test_move_character_to_unconnected_location_raises_error():
@@ -75,7 +79,8 @@ async def test_move_character_to_unconnected_location_raises_error():
     # 1. ARRANGE
     world_repo = InMemoryWorldRepository()
     event_bus = AsyncMock(spec=LocalEventBus)  # Mock the bus, we don't expect it to be called
-    handler = MoveCharacterHandler(world_repository=world_repo, event_bus=event_bus)
+    mock_memory_service = AsyncMock(spec=MemoryService) # Mock MemoryService
+    handler = MoveCharacterHandler(event_bus=event_bus, memory_service=mock_memory_service)
 
     char_id = CharacterId("player")
     start_loc_id = LocationId("bridge")
@@ -90,7 +95,7 @@ async def test_move_character_to_unconnected_location_raises_error():
             unconnected_loc_id: Location(id=unconnected_loc_id, name="Captain's Quarters", description="..."),
         },
         characters={
-            char_id: Character(id=char_id, name="Player", description="...", location_id=start_loc_id)
+            char_id: Character(id=char_id, name="Player", description="player description", location_id=start_loc_id) # Added description
         }
     )
     await world_repo.save(test_world)
@@ -103,7 +108,8 @@ async def test_move_character_to_unconnected_location_raises_error():
 
     # 2. ACT & 3. ASSERT
     with pytest.raises(ValueError, match="not accessible"):
-        await handler.execute(command)
+        await handler.execute(command, test_world) # Pass world to execute
 
     # Assert that the world state was NOT saved and no event was published
     event_bus.publish.assert_not_called()
+    mock_memory_service.compress_memory_if_needed.assert_not_called() # Memory service should not be called on error

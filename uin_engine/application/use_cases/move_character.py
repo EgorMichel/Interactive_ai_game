@@ -1,11 +1,9 @@
-from uin_engine.application.ports.world_repository import IWorldRepository
 from uin_engine.application.ports.event_bus import IEventBus
 from uin_engine.application.commands.character import MoveCharacterCommand
 from uin_engine.domain.events import CharacterMoved
 from uin_engine.application.services.memory_service import MemoryService
-
-
 from uin_engine.domain.entities import GameWorld, Character
+from typing import List
 
 
 class MoveCharacterHandler:
@@ -14,24 +12,19 @@ class MoveCharacterHandler:
     This class orchestrates the domain models and infrastructure services
     to fulfill the request.
     """
-    def __init__(self, world_repository: IWorldRepository, event_bus: IEventBus, memory_service: MemoryService):
-        self._repo = world_repository
+    def __init__(self, event_bus: IEventBus, memory_service: MemoryService):
         self._bus = event_bus
         self._memory_service = memory_service
 
-    async def execute(self, command: MoveCharacterCommand) -> GameWorld:
+    async def execute(self, command: MoveCharacterCommand, world: GameWorld) -> GameWorld:
         """
-        Executes the character movement logic.
-        1. Fetches world state and validates the move.
+        Executes the character movement logic on the given world object.
+        1. Validates the move.
         2. Updates character's location.
         3. Updates narrative memory for the mover and any observers.
         4. Triggers memory compression check for all affected characters.
-        5. Persists the new world state and publishes a domain event.
+        5. Publishes a domain event.
         """
-        world = await self._repo.get_by_id(command.world_id)
-        if not world:
-            raise ValueError(f"World with id '{command.world_id}' not found.")
-
         character = world.characters.get(command.character_id)
         if not character:
             raise ValueError(f"Character with id '{command.character_id}' not found in world.")
@@ -77,9 +70,7 @@ class MoveCharacterHandler:
                 )
                 characters_whose_memory_changed.append(observer)
 
-        # --- Persist, Compress, and Notify ---
-        await self._repo.save(world)
-
+        # --- Notify and Compress ---
         event = CharacterMoved(
             character_id=character.id,
             from_location_id=from_location_id,

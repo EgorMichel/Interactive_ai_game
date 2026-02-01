@@ -117,3 +117,9 @@ characters:
         target: "bridge"
       - time: "08:20"
         action_type: "idle"
+
+solution:
+  killer_id: sophie
+  required_fact_ids:
+    - bloody_knife
+    - sophie_earring

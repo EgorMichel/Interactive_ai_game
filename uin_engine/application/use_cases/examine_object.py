@@ -1,14 +1,10 @@
-from uin_engine.application.ports.world_repository import IWorldRepository
 from uin_engine.application.ports.event_bus import IEventBus
 from uin_engine.application.commands.investigation import ExamineObjectCommand
 from uin_engine.domain.events import FactDiscovered
-from uin_engine.domain.entities import FactId, Clue
+from uin_engine.domain.entities import FactId, Clue, GameWorld
 from uin_engine.domain.value_objects import KnowledgeEntry
 from uin_engine.application.services.memory_service import MemoryService
 from typing import List
-
-
-from uin_engine.domain.entities import FactId, Clue, GameWorld
 
 
 class ExamineObjectHandler:
@@ -17,24 +13,19 @@ class ExamineObjectHandler:
     Allows the player to examine an object in their current location
     and potentially discover new clues/facts.
     """
-    def __init__(self, world_repository: IWorldRepository, event_bus: IEventBus, memory_service: MemoryService):
-        self._repo = world_repository
+    def __init__(self, event_bus: IEventBus, memory_service: MemoryService):
         self._bus = event_bus
         self._memory_service = memory_service
 
-    async def execute(self, command: ExamineObjectCommand) -> tuple[List[Clue], GameWorld]:
+    async def execute(self, command: ExamineObjectCommand, world: GameWorld) -> tuple[List[Clue], GameWorld]:
         """
-        Executes the object examination logic.
-        1. Fetches world state and validates.
+        Executes the object examination logic on the given world object.
+        1. Validates state.
         2. Attempts to discover clues.
         3. Updates player's knowledge (semantic) and memory (episodic).
         4. Triggers memory compression check for the player.
-        5. Persists the world state and publishes events.
+        5. Publishes events.
         """
-        world = await self._repo.get_by_id(command.world_id)
-        if not world:
-            raise ValueError(f"World with id '{command.world_id}' not found.")
-
         player = world.characters.get(command.player_id)
         if not player:
             raise ValueError(f"Player with id '{command.player_id}' not found.")
@@ -75,8 +66,6 @@ class ExamineObjectHandler:
             for fact_id in new_facts_for_player:
                 player.knowledge[fact_id] = KnowledgeEntry(fact_id=fact_id, certainty=1.0)
             
-            await self._repo.save(world)
-
             for fact_id in new_facts_for_player:
                 event = FactDiscovered(
                     character_id=player.id,
@@ -85,8 +74,6 @@ class ExamineObjectHandler:
                     source=f"examining {target_object.name}"
                 )
                 await self._bus.publish(event)
-        else:
-            await self._repo.save(world)
         
         # --- Trigger Memory Compression ---
         self._memory_service.compress_memory_if_needed(world, player)
