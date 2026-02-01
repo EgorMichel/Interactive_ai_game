@@ -4,7 +4,7 @@ from typing import Dict
 
 from uin_engine.domain.scenario_models import ConfigScenario, ConfigObject, ConfigClue
 from uin_engine.domain.value_objects import KnowledgeEntry
-from uin_engine.domain.entities import GameWorld, Character, Location, Fact, GameObject, Clue, CharacterId, LocationId, FactId, ScheduleEntry
+from uin_engine.domain.entities import GameWorld, Character, Location, Fact, GameObject, Clue, CharacterId, LocationId, FactId, ScheduleEntry, Solution
 
 
 class ScenarioLoader:

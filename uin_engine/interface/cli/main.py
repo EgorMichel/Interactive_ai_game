@@ -64,6 +64,7 @@ async def main():
             current_location = world.locations[player.location_id]
             other_chars = [c for c in world.characters.values() if c.location_id == current_location.id and c.id != PLAYER_ID]
 
+            prompt = "> " # Initialize prompt here
             # --- Print current situation (only if not in a continuous dialogue) ---
             if last_interlocutor:
                 listener_name = world.characters.get(last_interlocutor, "Unknown").name
@@ -78,15 +79,15 @@ async def main():
                     print(f"You see the following objects: {', '.join([obj.name for obj in current_location.objects])}")
                 if other_chars:
                     print(f"You see: {', '.join([c.name for c in other_chars])}")
-                print(f"Exits: {', '.join(current_location.connections)}")
-                prompt = "> "
+            print(f"Exits: {', '.join(current_location.connections)}")
             
-            command_str = input(prompt).strip()
+            # --- Get and process user input ---
+            command_str = input(prompt).strip() # Do not convert to lower here
             parts = command_str.split()
             if not parts:
                 continue
 
-            verb = parts[0].lower()
+            verb = parts[0].lower() # Convert only the verb to lower
             action_succeeded = False
             
             # --- Command Parsing ---
@@ -110,7 +111,7 @@ async def main():
                     message = command_str # The whole input is the message
                     command = TalkToCharacterCommand(world_id=WORLD_ID, speaker_id=PLAYER_ID, listener_id=last_interlocutor, message=message)
                     response, world = await talk_handler.execute(command, world)
-                    print(f"{target_char.name}: \"{response.text}\""")
+                    print(f"{target_char.name}: \"{response.text}\"")
                     action_succeeded = True
                 else:
                     print(f"Unknown command: '{verb}'. Type 'help' for a list of commands.")
@@ -124,6 +125,7 @@ async def main():
                 if last_interlocutor:
                     print(f"You end the conversation with {world.characters[last_interlocutor].name}.")
                     last_interlocutor = None
+                    # action_succeeded remains False, so time will not advance
                 else:
                     print("You are not talking to anyone.")
                 continue
@@ -132,7 +134,8 @@ async def main():
                 last_interlocutor = None
                 if len(parts) > 1:
                     target_loc_name = " ".join(parts[1:])
-                    target_loc_id = next((loc.id for loc in world.locations.values() if loc.name.lower() == target_loc_name), None)
+                    # Compare names in lower case
+                    target_loc_id = next((loc.id for loc in world.locations.values() if loc.name.lower() == target_loc_name.lower()), None)
                     if target_loc_id:
                         command = MoveCharacterCommand(world_id=WORLD_ID, character_id=PLAYER_ID, target_location_id=target_loc_id)
                         world = await move_handler.execute(command, world)
@@ -141,29 +144,31 @@ async def main():
                     else:
                         print(f"Location '{target_loc_name}' not found.")
                 else:
-                    print("Move where? 'move <location>'"")
+                    print("Move where? 'move <location>'")
 
             elif verb == "talk":
                 if len(parts) > 2:
                     target_char_name = parts[1]
                     message = " ".join(parts[2:])
-                    target_char = next((c for c in other_chars if c.name.lower() == target_char_name), None)
+                    # Compare names in lower case
+                    target_char = next((c for c in other_chars if c.name.lower() == target_char_name.lower()), None)
                     if target_char:
                         last_interlocutor = target_char.id # Set dialogue context
                         command = TalkToCharacterCommand(world_id=WORLD_ID, speaker_id=PLAYER_ID, listener_id=target_char.id, message=message)
                         response, world = await talk_handler.execute(command, world)
-                        print(f"{target_char.name}: \"{response.text}\""")
+                        print(f"{target_char.name}: \"{response.text}\"")
                         action_succeeded = True
                     else:
                         print(f"Character '{target_char_name}' not found here.")
                 else:
-                    print("Talk to who and about what? 'talk <character> <message>'"")
+                    print("Talk to who and about what? 'talk <character> <message>'")
             
             elif verb == "examine":
                 last_interlocutor = None
                 if len(parts) > 1:
                     target_obj_name = " ".join(parts[1:])
-                    target_object = next((obj for obj in current_location.objects if obj.name.lower() == target_obj_name), None)
+                    # Compare names in lower case
+                    target_object = next((obj for obj in current_location.objects if obj.name.lower() == target_obj_name.lower()), None)
                     if target_object:
                         command = ExamineObjectCommand(world_id=WORLD_ID, player_id=PLAYER_ID, object_id=target_object.id, location_id=current_location.id)
                         discovered_clues, world = await examine_handler.execute(command, world)
@@ -173,13 +178,14 @@ async def main():
                     else:
                         print(f"Object '{target_obj_name}' not found in {current_location.name}.")
                 else:
-                    print("Examine what? 'examine <object>'"")
+                    print("Examine what? 'examine <object>'")
 
             elif verb == "accuse":
                 last_interlocutor = None
                 if len(parts) > 1:
                     accused_name = " ".join(parts[1:])
-                    accused_char = next((c for c in world.characters.values() if c.name.lower() == accused_name), None)
+                    # Compare names in lower case
+                    accused_char = next((c for c in world.characters.values() if c.name.lower() == accused_name.lower()), None)
                     if accused_char:
                         command = AccuseCharacterCommand(world_id=WORLD_ID, player_id=PLAYER_ID, accused_character_id=accused_char.id)
                         result = await accuse_handler.execute(command)
@@ -190,7 +196,7 @@ async def main():
                     else:
                         print(f"Character '{accused_name}' not found in the world.")
                 else:
-                    print("Accuse who? 'accuse <character>'"")
+                    print("Accuse who? 'accuse <character>'")
             
             # --- Game State Update ---
             if action_succeeded:
