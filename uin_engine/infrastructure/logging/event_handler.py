@@ -69,7 +69,7 @@ class LoggingEventHandler:
         game_time = world.game_time.strftime('%H:%M')
         log_message = (
             f"[{game_time}] LLM DEBUG: Preparing request for listener '{event.listener_id}'.\n"
-            f"--- RAW MEMORY ---\n{event.raw_memory}\n"
+            f"--- COMBINED MEMORY (from recent dialogue history) ---\n{event.raw_memory}\n"
             f"--- FULL PROMPT ---\n{event.full_prompt}\n"
             f"--- END PROMPT ---"
         )
