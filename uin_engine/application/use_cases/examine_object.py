@@ -73,7 +73,7 @@ class ExamineObjectHandler:
                     location_id=current_location.id,
                     source=f"examining {target_object.name}"
                 )
-                await self._bus.publish(event)
+                await self._bus.publish(event, world)
         
         # --- Trigger Memory Compression ---
         self._memory_service.compress_memory_if_needed(world, player)

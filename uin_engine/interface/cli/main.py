@@ -3,7 +3,7 @@ from typing import Optional
 
 from pathlib import Path
 
-from uin_engine.container import container
+from uin_engine.container import container, wire_dependencies
 from uin_engine.domain.entities import CharacterId
 from uin_engine.application.commands.character import MoveCharacterCommand
 from uin_engine.application.commands.dialogue import TalkToCharacterCommand
@@ -43,6 +43,9 @@ def print_help():
 
 async def main():
     """The main game loop for the CLI, with dialogue context."""
+    # Wire dependencies and subscribe event handlers
+    wire_dependencies()
+    
     await _setup_demo_world()
     
     repo = container.world_repository()

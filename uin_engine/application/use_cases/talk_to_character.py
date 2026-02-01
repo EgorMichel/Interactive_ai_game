@@ -99,7 +99,7 @@ class TalkToCharacterHandler:
             dialogue_text=response.text,
             revealed_fact_ids=response.newly_revealed_facts
         )
-        await self._bus.publish(event)
+        await self._bus.publish(event, world)
         
         # --- Trigger Memory Compression ---
         self._memory_service.compress_memory_if_needed(world, speaker)

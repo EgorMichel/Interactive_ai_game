@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
-from typing import Callable, Type
+from typing import Callable, Type, Optional
+
 from uin_engine.domain.events import DomainEvent
+from uin_engine.domain.entities import GameWorld
 
 
 class IEventBus(ABC):
@@ -11,9 +13,10 @@ class IEventBus(ABC):
     """
 
     @abstractmethod
-    async def publish(self, event: DomainEvent) -> None:
+    async def publish(self, event: DomainEvent, world: Optional[GameWorld] = None) -> None:
         """
-        Publishes a domain event to all subscribed handlers.
+        Publishes a domain event to all subscribed handlers, optionally passing
+        the current GameWorld state for context.
         """
         pass
 

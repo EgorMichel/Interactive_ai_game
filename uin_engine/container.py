@@ -8,9 +8,8 @@ from uin_engine.application.services.npc_behavior_system import NPCBehaviorSyste
 from uin_engine.application.services.memory_service import MemoryService
 from uin_engine.infrastructure.event_bus.local_event_bus import LocalEventBus
 from uin_engine.infrastructure.llm.litellm_service import LitellmService
-
-
-
+from uin_engine.infrastructure.logging.file_logger import FileLogger
+from uin_engine.infrastructure.logging.event_handler import LoggingEventHandler
 from uin_engine.infrastructure.repositories.in_memory_world_repository import InMemoryWorldRepository
 from uin_engine.infrastructure.config.scenario_loader import ScenarioLoader
 
@@ -20,17 +19,17 @@ class Container(containers.DeclarativeContainer):
     The Dependency Injection (DI) container for the application.
     It wires together the different components of the system.
     """
-    # Configuration (if we had any, it would go here)
-    # config = providers.Configuration()
-
     # =====================================================================
     # Infrastructure Layer
     # =====================================================================
-    # A single instance of each infrastructure service is shared across the app
-    # This is known as the Singleton scope.
     world_repository = providers.Singleton(InMemoryWorldRepository)
     event_bus = providers.Singleton(LocalEventBus)
-    llm_service = providers.Singleton(LitellmService)
+    logger = providers.Singleton(FileLogger, log_file="game.log")
+
+    llm_service = providers.Singleton(
+        LitellmService,
+        event_bus=event_bus
+    )
     scenario_loader = providers.Singleton(ScenarioLoader)
 
     # =====================================================================
@@ -45,8 +44,6 @@ class Container(containers.DeclarativeContainer):
     # =====================================================================
     # Application Layer (Use Case Handlers)
     # =====================================================================
-    # Handlers are created on-demand (Factory scope).
-    # The container automatically injects the required dependencies.
     move_character_handler = providers.Factory(
         MoveCharacterHandler,
         event_bus=event_bus,
@@ -76,5 +73,26 @@ class Container(containers.DeclarativeContainer):
         move_character_handler=move_character_handler,
     )
 
+    # =====================================================================
+    # Logging
+    # =====================================================================
+    logging_event_handler = providers.Singleton(
+        LoggingEventHandler,
+        logger=logger,
+        world_repository=world_repository,
+    )
+
 # A global instance of the container
 container = Container()
+
+def wire_dependencies():
+    """
+    Connects (wires) the components together.
+    This function should be called once at application startup.
+    """
+    # Subscribe the logging handler to the event bus
+    logging_handler = container.logging_event_handler()
+    event_bus = container.event_bus()
+    logging_handler.subscribe(event_bus)
+
+    print("Dependencies wired and event handlers subscribed.")

@@ -55,3 +55,17 @@ class DialogueOccurred(DomainEvent):
     @property
     def name(self) -> str:
         return "dialogue.occurred"
+
+
+class LLMRequestSent(DomainEvent):
+    """
+    DEBUG event triggered right before a request is sent to the LLM.
+    Used for logging and debugging prompts.
+    """
+    listener_id: CharacterId
+    full_prompt: str
+    raw_memory: str
+
+    @property
+    def name(self) -> str:
+        return "llm.request_sent"

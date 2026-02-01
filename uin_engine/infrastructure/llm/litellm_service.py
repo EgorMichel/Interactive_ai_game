@@ -9,6 +9,8 @@ from uin_engine.application.ports.llm_service import (
     DialogueGenerationContext,
     DialogueGenerationResponse,
 )
+from uin_engine.application.ports.event_bus import IEventBus
+from uin_engine.domain.events import LLMRequestSent
 from uin_engine.infrastructure.config import settings
 
 
@@ -18,7 +20,8 @@ class LitellmService(ILLMService):
     It connects to various LLM providers (OpenAI, Anthropic, local models via Ollama, etc.)
     through a unified API.
     """
-    def __init__(self):
+    def __init__(self, event_bus: IEventBus):
+        self._bus = event_bus
         # Configure LiteLLM globally from our settings
         litellm.api_key = settings.llm.api_key
         if settings.llm.api_base:
@@ -98,10 +101,19 @@ class LitellmService(ILLMService):
 
     async def generate_dialogue(self, context: DialogueGenerationContext) -> DialogueGenerationResponse:
         """
-        Generates a single dialogue response using LiteLLM and parses it
-        for revealed facts.
+        Generates a single dialogue response using LiteLLM, publishing a debug event
+        beforehand and parsing the response for revealed facts.
         """
         messages = self._build_messages_from_context(context)
+        
+        # Publish a debug event with the full prompt and memory
+        debug_event = LLMRequestSent(
+            listener_id=context.listener_name,
+            full_prompt=messages[0]["content"], # The system message
+            raw_memory=context.recent_dialogue_history
+        )
+        await self._bus.publish(debug_event)
+
         llm_raw_content = await self._get_llm_response(messages)
 
         # Regex to find all fact tags
