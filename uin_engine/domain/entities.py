@@ -8,6 +8,7 @@ from uin_engine.domain.value_objects import KnowledgeEntry, Relationship
 CharacterId = NewType('CharacterId', str)
 LocationId = NewType('LocationId', str)
 FactId = NewType('FactId', str)
+DialogueSessionId = NewType('DialogueSessionId', str)
 
 
 class Fact(BaseModel):
@@ -64,7 +65,7 @@ class Character(BaseModel):
     # Level 3 Memory: Semantic (Structured Facts)
     knowledge: Dict[FactId, KnowledgeEntry] = Field(default_factory=dict)
     
-    # Level 2 Memory: Episodic (Narrative Log)
+    # Level 2 Memory: Episodic (Narrative Log of summaries and key events)
     narrative_memory: List[str] = Field(default_factory=list)
 
     relationships: Dict[CharacterId, Relationship] = Field(default_factory=dict)
@@ -74,12 +75,20 @@ class Character(BaseModel):
 
 
 from datetime import time
-class DialogueEntry(BaseModel):
-    """Represents a single entry in a dialogue history."""
+
+class DialogueReplica(BaseModel):
+    """A single replica within a dialogue session."""
     speaker_id: CharacterId
-    listener_id: CharacterId
     message: str
     game_time: time
+
+
+class DialogueSession(BaseModel):
+    """Represents an active dialogue session between characters."""
+    id: DialogueSessionId
+    participants: List[CharacterId]
+    history: List[DialogueReplica] = Field(default_factory=list)
+    is_active: bool = True
 
 
 class GameWorld(BaseModel):
@@ -93,10 +102,9 @@ class GameWorld(BaseModel):
     locations: Dict[LocationId, Location] = Field(default_factory=dict)
     characters: Dict[CharacterId, Character] = Field(default_factory=dict)
     facts: Dict[FactId, Fact] = Field(default_factory=dict)
-    game_time: time = Field(default_factory=lambda: time(8, 0))  # Start at 08:00 by default
-    dialogue_history: List[DialogueEntry] = Field(default_factory=list)
+    game_time: time = Field(default_factory=lambda: time(8, 0))
+    active_dialogues: Dict[DialogueSessionId, DialogueSession] = Field(default_factory=dict)
     solution: Optional['Solution'] = None
-
 
 class Solution(BaseModel):
     """Represents the solution to the mystery."""

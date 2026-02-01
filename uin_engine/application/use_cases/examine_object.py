@@ -75,8 +75,5 @@ class ExamineObjectHandler:
                 )
                 await self._bus.publish(event, world)
         
-        # --- Trigger Memory Compression ---
-        self._memory_service.compress_memory_if_needed(world, player)
-
         return discovered_clues, world
 

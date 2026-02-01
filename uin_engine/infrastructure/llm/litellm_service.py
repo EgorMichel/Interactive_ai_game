@@ -38,6 +38,9 @@ class LitellmService(ILLMService):
             os.environ["OPENAI_API_KEY"] = settings.llm.api_key
         if settings.llm.api_base:
             os.environ["OPENAI_API_BASE"] = settings.llm.api_base
+        
+        # Disable LiteLLM's internal telemetry that causes TimeoutError messages
+        os.environ["LITELLM_DISABLE_TELEMETRY"] = "True"
 
     async def _get_llm_response(self, messages: List[dict]) -> str:
         max_retries = 3

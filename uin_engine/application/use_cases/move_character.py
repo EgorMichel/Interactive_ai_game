@@ -70,17 +70,13 @@ class MoveCharacterHandler:
                 )
                 characters_whose_memory_changed.append(observer)
 
-        # --- Notify and Compress ---
+        # --- Notify ---
         event = CharacterMoved(
             character_id=character.id,
             from_location_id=from_location_id,
             to_location_id=command.target_location_id
         )
         await self._bus.publish(event, world)
-        
-        # --- Trigger Memory Compression ---
-        for char in characters_whose_memory_changed:
-            self._memory_service.compress_memory_if_needed(world, char)
 
         return world
 
