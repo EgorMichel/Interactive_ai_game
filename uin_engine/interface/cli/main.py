@@ -117,6 +117,12 @@ async def main():
                         message=message
                     )
                     world, _ = await talk_handler.execute(command, world)
+                    session = world.active_dialogues.get(player_session_id)
+                    if session and session.history:
+                        last_replica = session.history[-1]
+                        if last_replica.speaker_id != PLAYER_ID:
+                            speaker_name = world.characters[last_replica.speaker_id].name
+                            print(f"{speaker_name}: {last_replica.message}")
                     action_succeeded = True
                 else:
                     print(f"Unknown command: '{verb}'. Type 'help' for a list of commands.")
@@ -132,9 +138,10 @@ async def main():
                 if player_session_id:
                     command = EndDialogueCommand(world_id=WORLD_ID, session_id=player_session_id)
                     world = await end_dialogue_handler.execute(command, world)
+                    await repo.save(world)
                     print("You end the conversation.")
                     player_session_id = None
-                    action_succeeded = True
+                    # We don't set action_succeeded = True, so time doesn't advance.
                 else:
                     print("You are not talking to anyone.")
 
@@ -147,6 +154,12 @@ async def main():
                         command = TalkToCharacterCommand(world_id=WORLD_ID, speaker_id=PLAYER_ID, listener_id=target_char.id, message=message)
                         world, new_session_id = await talk_handler.execute(command, world)
                         player_session_id = new_session_id
+                        session = world.active_dialogues.get(new_session_id)
+                        if session and session.history:
+                            last_replica = session.history[-1]
+                            if last_replica.speaker_id != PLAYER_ID:
+                                speaker_name = world.characters[last_replica.speaker_id].name
+                                print(f"{speaker_name}: {last_replica.message}")
                         action_succeeded = True
                     else:
                         print(f"Character '{target_char_name}' not found here.")
