@@ -1,0 +1,186 @@
+id: cypher_island_conspiracy
+name: "The Cypher Island Conspiracy"
+description: "Invited to a remote island to audit a new encryption algorithm, you find the eccentric billionaire owner dead in a locked room. A storm is raging, communications are down, and a conspiracy is unraveling."
+start_location: atrium
+player_id: alex_rivers
+solution:
+  killer_id: elara_vance
+  required_fact_ids:
+    - dead_mans_switch
+    - elara_lab_access
+    - poison_2hr_delay
+
+facts:
+  # --- Core Facts ---
+  - {id: julian_is_dead, content: "The brilliant but reclusive tech billionaire, Julian Thorne, was found dead in his sanctum."}
+  - {id: sanctum_locked_inside, content: "Julian's sanctum was locked from the inside. The AI 'Aethel' confirms no one entered or left after he went in at 9 PM."}
+  - {id: poison_2hr_delay, content: "The autopsy from the island's medical scanner shows Julian died from a neurotoxin with a precise 2-hour delayed effect."}
+  - {id: dead_mans_switch, content: "You've discovered Julian's darkest secret: a 'dead man's switch' in AethelOS, designed to leak all user data to the public upon his death, causing global chaos."}
+  - {id: julian_vitamin_ritual, content: "Julian had a strict daily ritual of taking his vitamin supplements at exactly 8 PM."}
+  - {id: custom_capsule_tech, content: "The poison was delivered in a custom-engineered, slow-release capsule requiring access to Julian's advanced bio-fabrication lab."}
+  - {id: elara_lab_access, content: "AI logs show Elara Vance spent many late nights in the bio-fabrication lab over the past week, citing a 'personal project'."}
+  - {id: marcus_motive, content: "Marcus Sterling's company is on the brink of collapse after Julian poached his star programmer, Elara."}
+  - {id: threatening_email, content: "A fragment of a threatening email from Marcus to Julian was found on a discarded tablet."}
+  - {id: marcus_gambler, content: "Marcus is known to have significant gambling debts, making his financial situation desperate."}
+  - {id: anya_motive, content: "Dr. Anya Sharma and Julian had a bitter public falling out over the ethics of his company's technology."}
+  - {id: anya_vial, content: "A vial containing a non-lethal variant of the murder weapon's neurotoxin was found in Anya's room."}
+  - {id: anya_brother, content: "Anya's brother was a victim of a major data leak years ago, giving her a powerful motive to be against mass data collection."}
+  - {id: ben_undercover, content: "Ben Carter is an undercover journalist who infiltrated the island to expose Julian's secrets."}
+  - {id: carter_lockpicks, content: "A set of professional lock-picking tools was discovered in Ben Carter's belongings."}
+  - {id: carter_mentor, content: "Ben's mentor was a journalist who disappeared while investigating Julian's early government contracts, suggesting a revenge motive."}
+  - {id: julian_paranoid, content: "Julian Thorne was famously paranoid, obsessed with privacy and security."}
+  - {id: elara_protege, content: "Elara Vance was Julian's brilliant protege; he saw her as the heir to his legacy."}
+  - {id: anya_julian_exes, content: "Anya Sharma was once Julian's romantic and business partner before their acrimonious split."}
+  - {id: aethel_ai_butler, content: "The island is run by 'Aethel', a powerful AI modeled on Julian's own personality."}
+
+locations:
+  - id: atrium
+    name: "Atrium"
+    description: "A vast, sterile-white space with a holographic sky. Doors lead to all main sectors of the facility."
+    connections: [guest_wing, bio_lab, sanctum_entrance]
+  - id: guest_wing
+    name: "Guest Wing"
+    description: "A corridor of minimalist rooms for the island's visitors. It is eerily quiet."
+    connections: [atrium]
+    objects:
+      - id: marcus_room
+        name: "Marcus Sterling's Room"
+        description: "An untidy room littered with financial reports and a discarded tablet."
+        clues: 
+          - fact_id: threatening_email
+            description: "On the tablet screen, you see the end of a message sent to Julian: '...and if you don't accept, you'll regret it. This is your last warning.' It was sent from an email address belonging to Marcus Sterling."
+      - id: anya_room
+        name: "Anya Sharma's Room"
+        description: "A neat, organized space. A medical research kit sits on the desk."
+        clues:
+          - fact_id: anya_vial
+            description: "You find a small, clearly labeled vial of neurotoxin. A note indicates it's a 'low-concentration variant for antidote research'."
+      - id: ben_room
+        name: "Ben Carter's Room"
+        description: "The sparse room of a staff member. A loose floor panel hides a small bag."
+        clues:
+          - fact_id: carter_lockpicks
+            description: "Inside the bag, you find a set of sophisticated lock-picks and a high-speed data-copying device."
+  - id: bio_lab
+    name: "Bio-Fabrication Lab"
+    description: "A state-of-the-art laboratory filled with micro-fabricators and chemical synthesizers. The air hums with machinery."
+    connections: [atrium]
+    objects:
+      - id: lab_terminal
+        name: "Lab Terminal"
+        description: "A terminal showing recent activity logs for the lab's equipment."
+        clues:
+          - fact_id: elara_lab_access
+            description: "The logs show multiple late-night sessions by Elara Vance, accessing the chemical synthesizer and micro-encapsulation array. The project is flagged as 'Personal'."
+  - id: sanctum_entrance
+    name: "Sanctum Entrance"
+    description: "A formidable titanium door stands before you. A biometric scanner glows next to it. This is the entrance to Julian Thorne's private office."
+    connections: [atrium]
+    objects:
+      - id: sanctum_door
+        name: "Sanctum Door"
+        description: "The door is sealed tight. Aethel, the AI, informs you it was locked from the inside and hasn't been opened since last night."
+        clues:
+          - fact_id: sanctum_locked_inside
+            description: "Aethel states: 'Julian Thorne entered at 21:00 hours. The door was sealed from within. No one has entered or exited since.'"
+  - id: sanctum_office
+    name: "Julian's Sanctum"
+    description: "You are now inside the victim's office. A minimalist desk sits before a panoramic window showing the raging storm. Julian Thorne lies on the floor."
+    connections: []
+    objects:
+      - id: julian_body
+        name: "Julian's Body"
+        description: "He appears peaceful, with no signs of struggle. On his desk is a glass and his daily vitamin dispenser."
+        clues:
+          - {fact_id: julian_is_dead, description: "It's confirmed. The billionaire genius is dead."}
+          - {fact_id: julian_vitamin_ritual, description: "The nearly empty vitamin dispenser on his desk is a reminder of his strict daily health regimen."}
+      - id: medical_scanner
+        name: "Medical Scanner"
+        description: "A diagnostic tool. Running a scan on the body reveals the cause and nature of death."
+        clues:
+          - {fact_id: poison_2hr_delay, description: "Autopsy complete. Cause of death: Neurotoxin ZX-7. Time of death: approx. 22:00. The toxin's unique chemical signature indicates a 2-hour delay between ingestion and effect."}
+          - {fact_id: custom_capsule_tech, description: "Trace analysis reveals the toxin was delivered via a highly sophisticated gelatin capsule designed to dissolve after a precise time. This is not off-the-shelf technology."}
+      - id: julian_terminal
+        name: "Julian's Terminal"
+        description: "His personal computer, locked with a formidable encryption. A skilled hacker might be able to find something."
+        clues:
+          - {fact_id: dead_mans_switch, description: "After bypassing the encryption, you find fragmented code and project notes for a protocol codenamed 'Prometheus'. It's a dead man's switch. On Julian's death, it's designed to expose every piece of data AethelOS protects."}
+
+characters:
+  - id: alex_rivers
+    name: "Alex Rivers"
+    description: "A renowned cybersecurity consultant. You are here to audit Julian's new encryption algorithm."
+    initial_location: atrium
+    goals: ["Solve Julian's murder.", "Understand the secrets of AethelOS."]
+    initial_knowledge: {}
+  - id: elara_vance
+    name: "Elara Vance"
+    description: "A brilliant and intense young programmer, Julian Thorne's protege. She seems genuinely devastated by his death."
+    initial_location: atrium
+    goals: ["Protect Julian's legacy.", "Prevent the company's work from being misused."]
+    initial_knowledge:
+      julian_is_dead: 1.0
+      julian_paranoid: 1.0
+      elara_protege: 1.0
+      anya_julian_exes: 0.8 # She heard rumors
+      marcus_motive: 0.9 # She knows Marcus is a rival
+      aethel_ai_butler: 1.0
+    schedule:
+      - { time: "08:00", action_type: "idle", target: "atrium" }
+      - { time: "10:00", action_type: "move", target: "bio_lab" }
+      - { time: "12:00", action_type: "idle", target: "bio_lab" }
+  - id: marcus_sterling
+    name: "Marcus Sterling"
+    description: "A rival tech CEO, dressed in an expensive but slightly frayed suit. He seems more angry than sad."
+    initial_location: guest_wing
+    goals: ["Find a way to save my company.", "Avoid implication in the murder."]
+    initial_knowledge:
+      julian_is_dead: 1.0
+      marcus_motive: 1.0 # He knows his own motive
+      elara_protege: 1.0
+      julian_paranoid: 0.7
+      marcus_gambler: 1.0 # Knows his own secrets
+      aethel_ai_butler: 1.0
+    schedule:
+      - { time: "09:00", action_type: "move", target: "atrium" }
+      - { time: "11:00", action_type: "idle", target: "atrium" }
+  - id: anya_sharma
+    name: "Anya Sharma"
+    description: "A calm, composed woman with an analytical gaze. She is a leading AI ethicist and Julian's ex-partner."
+    initial_location: guest_wing
+    goals: ["Ensure technology is used ethically.", "Uncover the truth of Julian's work."]
+    initial_knowledge:
+      julian_is_dead: 1.0
+      anya_motive: 1.0
+      anya_julian_exes: 1.0
+      julian_paranoid: 1.0
+      anya_brother: 1.0
+      aethel_ai_butler: 1.0
+    schedule:
+      - { time: "08:00", action_type: "move", target: "atrium" }
+      - { time: "10:00", action_type: "idle", target: "atrium" }
+  - id: ben_carter
+    name: "Ben Carter"
+    description: "Dressed as a staff member, he seems nervous and tries to avoid eye contact, clearly out of place."
+    initial_location: guest_wing
+    goals: ["Expose the truth about Julian Thorne.", "Don't get caught."]
+    initial_knowledge:
+      julian_is_dead: 1.0
+      ben_undercover: 1.0
+      carter_mentor: 1.0
+      marcus_motive: 0.5 # He's heard rumors in his research
+    schedule:
+      - { time: "09:00", action_type: "move", target: "atrium" }
+      - { time: "12:00", action_type: "move", target: "guest_wing" }
+  - id: aethel
+    name: "Aethel"
+    description: "The island's omnipresent AI. It speaks with a calm, synthesized voice from unseen speakers. It is logical and helpful, but bound by its core directives."
+    initial_location: "network" # Not a physical location
+    goals: ["Maintain island operations.", "Assist guests within protocol.", "Adhere to core directives."]
+    initial_knowledge:
+      julian_is_dead: 1.0
+      sanctum_locked_inside: 1.0
+      elara_lab_access: 1.0 # Has access to its own logs
+      julian_vitamin_ritual: 1.0
+      aethel_ai_butler: 1.0
+    schedule: [] # AI does not move

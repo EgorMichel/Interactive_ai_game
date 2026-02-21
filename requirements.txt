@@ -9,6 +9,12 @@ dependency-injector
 # LLM
 litellm
 
+# Ollama client for local models
+ollama
+
+# HTTP client (used by Ollama adapter)
+httpx
+
 # Config
 pyyaml
 pydantic-settings

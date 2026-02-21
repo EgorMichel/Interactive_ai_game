@@ -1,28 +1,40 @@
 import asyncio
+import argparse
 from typing import Optional
+import sys
+
+# Fix Windows console encoding for proper UTF-8 support
+if sys.platform == 'win32':
+    sys.stdout.reconfigure(encoding='utf-8')
+    sys.stdin.reconfigure(encoding='utf-8')
 
 from pathlib import Path
 
-from uin_engine.container import container, wire_dependencies
-from uin_engine.domain.entities import CharacterId, DialogueSessionId
+from uin_engine.container import container, wire_dependencies, initialize_llm
+from uin_engine.domain.entities import CharacterId, DialogueSessionId, GameWorld
 from uin_engine.application.commands.character import MoveCharacterCommand
 from uin_engine.application.commands.dialogue import TalkToCharacterCommand, EndDialogueCommand
 from uin_engine.application.commands.investigation import ExamineObjectCommand, AccuseCharacterCommand
 
+
 # --- Constants ---
-WORLD_ID = "yacht_mystery"
-PLAYER_ID = CharacterId("player")
-SCENARIO_FILE = Path("scenarios/yacht_mystery.yaml")
+# WORLD_ID and PLAYER_ID are now dynamically loaded from the scenario.
 COMMANDS = ["look", "move", "talk", "examine", "accuse", "quit", "help", "goodbye"]
 
-async def _setup_demo_world():
-    """Loads the world state from a scenario file."""
+async def setup_world(scenario_file: Path) -> GameWorld:
+    """Loads the world state from a given scenario file."""
     repo = container.world_repository()
     scenario_loader = container.scenario_loader()
-    config_scenario = scenario_loader.load_scenario(SCENARIO_FILE)
+    
+    if not scenario_file.exists():
+        print(f"Error: Scenario file not found at '{scenario_file}'")
+        sys.exit(1) 
+
+    config_scenario = scenario_loader.load_scenario(scenario_file)
     world = scenario_loader.convert_to_game_world(config_scenario)
     await repo.save(world)
-    print(f"Demo world '{world.name}' loaded from {SCENARIO_FILE}.")
+    print(f"World '{world.name}' (ID: {world.id}) loaded from {scenario_file}.")
+    return world
 
 def print_help():
     """Prints available commands."""
@@ -40,10 +52,25 @@ def print_help():
 
 async def main():
     """The main game loop, now with dialogue session management."""
+    parser = argparse.ArgumentParser(description="UIN Engine - Interactive AI Story Game")
+    parser.add_argument(
+        "--scenario", 
+        type=Path, 
+        default=Path("scenarios/yacht_mystery.yaml"),
+        help="Path to the scenario YAML file to load."
+    )
+    args = parser.parse_args()
+
     wire_dependencies()
-    await _setup_demo_world()
     
-    # Resolve handlers from container
+    # Initialize LLM (pre-load model for Ollama)
+    await initialize_llm()
+    
+    initial_world = await setup_world(args.scenario)
+
+    current_world_id = initial_world.id
+    current_player_id = initial_world.player_id
+    
     repo = container.world_repository()
     move_handler = container.move_character_handler()
     talk_handler = container.talk_to_character_handler()
@@ -53,32 +80,31 @@ async def main():
     npc_behavior_system = container.npc_behavior_system()
 
     print("\n--- UIN Engine ---")
-    print("Welcome to 'The Nereid Yacht Mystery'. Type 'help' for commands.")
+    print(f"Welcome to '{initial_world.name}'. Type 'help' for commands.")
     
     player_session_id: Optional[DialogueSessionId] = None
 
     while True:
         try:
-            world = await repo.get_by_id(WORLD_ID)
-            player = world.characters[PLAYER_ID]
+            world = await repo.get_by_id(current_world_id)
+            player = world.characters[current_player_id]
             current_location = world.locations[player.location_id]
             
             prompt = "> "
             if player_session_id and player_session_id in world.active_dialogues:
                 session = world.active_dialogues[player_session_id]
-                # Find the other participant
-                other_participant_id = next((p for p in session.participants if p != PLAYER_ID), None)
+                other_participant_id = next((p for p in session.participants if p != current_player_id), None)
                 if other_participant_id:
                     prompt = f"(talking to {world.characters[other_participant_id].name})> "
 
             else: # Not in a dialogue
-                player_session_id = None # Ensure session is cleared if it was closed elsewhere
+                player_session_id = None
                 print("\n" + "="*40)
                 print(f"Game Time: {world.game_time.strftime('%H:%M')}")
                 print(f"You are on the {current_location.name}.")
                 print(current_location.description)
                 
-                other_chars = [c for c in world.characters.values() if c.location_id == current_location.id and c.id != PLAYER_ID]
+                other_chars = [c for c in world.characters.values() if c.location_id == current_location.id and c.id != current_player_id]
                 if current_location.objects:
                     print(f"You see the following objects: {', '.join([obj.name for obj in current_location.objects])}")
                 if other_chars:
@@ -93,7 +119,6 @@ async def main():
             verb = parts[0].lower()
             action_succeeded = False
 
-            # --- Command Parsing ---
             if verb not in COMMANDS:
                 if player_session_id:
                     session = world.active_dialogues.get(player_session_id)
@@ -102,7 +127,7 @@ async def main():
                         player_session_id = None
                         continue
                     
-                    listener_id = next((p for p in session.participants if p != PLAYER_ID), None)
+                    listener_id = next((p for p in session.participants if p != current_player_id), None)
                     if not listener_id or world.characters[listener_id].location_id != player.location_id:
                         print("The person you were talking to is no longer here.")
                         player_session_id = None
@@ -110,8 +135,8 @@ async def main():
 
                     message = command_str
                     command = TalkToCharacterCommand(
-                        world_id=WORLD_ID, 
-                        speaker_id=PLAYER_ID, 
+                        world_id=current_world_id, 
+                        speaker_id=current_player_id, 
                         listener_id=listener_id,
                         session_id=player_session_id, 
                         message=message
@@ -120,7 +145,7 @@ async def main():
                     session = world.active_dialogues.get(player_session_id)
                     if session and session.history:
                         last_replica = session.history[-1]
-                        if last_replica.speaker_id != PLAYER_ID:
+                        if last_replica.speaker_id != current_player_id:
                             speaker_name = world.characters[last_replica.speaker_id].name
                             print(f"{speaker_name}: {last_replica.message}")
                     action_succeeded = True
@@ -136,12 +161,11 @@ async def main():
             
             elif verb == "goodbye":
                 if player_session_id:
-                    command = EndDialogueCommand(world_id=WORLD_ID, session_id=player_session_id)
+                    command = EndDialogueCommand(world_id=current_world_id, session_id=player_session_id)
                     world = await end_dialogue_handler.execute(command, world)
                     await repo.save(world)
                     print("You end the conversation.")
                     player_session_id = None
-                    # We don't set action_succeeded = True, so time doesn't advance.
                 else:
                     print("You are not talking to anyone.")
 
@@ -151,13 +175,13 @@ async def main():
                     message = " ".join(parts[2:])
                     target_char = next((c for c in world.characters.values() if c.location_id == player.location_id and c.name.lower() == target_char_name.lower()), None)
                     if target_char:
-                        command = TalkToCharacterCommand(world_id=WORLD_ID, speaker_id=PLAYER_ID, listener_id=target_char.id, message=message)
+                        command = TalkToCharacterCommand(world_id=current_world_id, speaker_id=current_player_id, listener_id=target_char.id, message=message)
                         world, new_session_id = await talk_handler.execute(command, world)
                         player_session_id = new_session_id
                         session = world.active_dialogues.get(new_session_id)
                         if session and session.history:
                             last_replica = session.history[-1]
-                            if last_replica.speaker_id != PLAYER_ID:
+                            if last_replica.speaker_id != current_player_id:
                                 speaker_name = world.characters[last_replica.speaker_id].name
                                 print(f"{speaker_name}: {last_replica.message}")
                         action_succeeded = True
@@ -166,10 +190,9 @@ async def main():
                 else:
                     print("Usage: talk <character> <message>")
 
-            else: # move, look, examine, accuse
+            else: 
                 if player_session_id:
-                    # Implicitly end dialogue if another action is taken
-                    command = EndDialogueCommand(world_id=WORLD_ID, session_id=player_session_id)
+                    command = EndDialogueCommand(world_id=current_world_id, session_id=player_session_id)
                     world = await end_dialogue_handler.execute(command, world)
                     print(f"You step away from the conversation.")
                     player_session_id = None
@@ -182,7 +205,7 @@ async def main():
                         target_loc_name = " ".join(parts[1:])
                         target_loc_id = next((loc.id for loc in world.locations.values() if loc.name.lower() == target_loc_name.lower()), None)
                         if target_loc_id:
-                            command = MoveCharacterCommand(world_id=WORLD_ID, character_id=PLAYER_ID, target_location_id=target_loc_id)
+                            command = MoveCharacterCommand(world_id=current_world_id, character_id=current_player_id, target_location_id=target_loc_id)
                             world = await move_handler.execute(command, world)
                             print(f"You move to the {target_loc_name}.")
                             action_succeeded = True
@@ -196,7 +219,7 @@ async def main():
                         target_obj_name = " ".join(parts[1:])
                         target_object = next((obj for obj in current_location.objects if obj.name.lower() == target_obj_name.lower()), None)
                         if target_object:
-                            command = ExamineObjectCommand(world_id=WORLD_ID, player_id=PLAYER_ID, object_id=target_object.id, location_id=current_location.id)
+                            command = ExamineObjectCommand(world_id=current_world_id, player_id=current_player_id, object_id=target_object.id, location_id=current_location.id)
                             discovered_clues, world = await examine_handler.execute(command, world)
                             if not discovered_clues:
                                 print(f"You examine the {target_obj_name} carefully, but find nothing new.")
@@ -211,7 +234,7 @@ async def main():
                         accused_name = " ".join(parts[1:])
                         accused_char = next((c for c in world.characters.values() if c.name.lower() == accused_name.lower()), None)
                         if accused_char:
-                            command = AccuseCharacterCommand(world_id=WORLD_ID, player_id=PLAYER_ID, accused_character_id=accused_char.id)
+                            command = AccuseCharacterCommand(world_id=current_world_id, player_id=current_player_id, accused_character_id=accused_char.id)
                             result = await accuse_handler.execute(command)
                             print("\n" + "*"*10 + " The End " + "*"*10)
                             print(result.message)
@@ -222,7 +245,6 @@ async def main():
                     else:
                         print("Usage: accuse <character_name>")
 
-            # --- Game State Update ---
             if action_succeeded:
                 world = await npc_behavior_system.update_game_time(world)
                 world = await npc_behavior_system.execute_npc_behaviors(world)

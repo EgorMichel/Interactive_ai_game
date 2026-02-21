@@ -18,6 +18,8 @@ from uin_engine.infrastructure.event_bus.local_event_bus import LocalEventBus
 
 from uin_engine.infrastructure.llm.litellm_service import LitellmService
 
+from uin_engine.infrastructure.llm.ollama_service import OllamaLLMService
+
 from uin_engine.infrastructure.logging.file_logger import FileLogger
 
 from uin_engine.infrastructure.logging.event_handler import LoggingEventHandler
@@ -25,6 +27,8 @@ from uin_engine.infrastructure.logging.event_handler import LoggingEventHandler
 from uin_engine.infrastructure.repositories.in_memory_world_repository import InMemoryWorldRepository
 
 from uin_engine.infrastructure.config.scenario_loader import ScenarioLoader
+
+from uin_engine.infrastructure.config import settings
 
 
 
@@ -52,9 +56,16 @@ class Container(containers.DeclarativeContainer):
 
     logger = providers.Singleton(FileLogger, log_file="game.log")
 
+    scenario_loader = providers.Singleton(ScenarioLoader)
 
+    # =====================================================================
 
-    llm_service = providers.Singleton(
+    # LLM Service (Provider Selection)
+
+    # =====================================================================
+
+    # LiteLLM adapter (for OpenAI, Anthropic, Azure, etc.)
+    litellm_service = providers.Singleton(
 
         LitellmService,
 
@@ -62,7 +73,22 @@ class Container(containers.DeclarativeContainer):
 
     )
 
-    scenario_loader = providers.Singleton(ScenarioLoader)
+    # Ollama adapter (for local models)
+    ollama_service = providers.Singleton(
+
+        OllamaLLMService,
+
+        event_bus=event_bus
+
+    )
+
+    # Factory that selects the appropriate LLM service based on settings
+    # Access providers via Container class name
+    llm_service = providers.Factory(
+
+        lambda: Container.ollama_service() if settings.llm.provider == "ollama" else Container.litellm_service()
+
+    )
 
 
 
@@ -201,3 +227,21 @@ def wire_dependencies():
 
 
     print("Dependencies wired and event handlers subscribed.")
+
+
+
+async def initialize_llm():
+
+    """
+
+    Initialize the LLM service (pre-load model for Ollama).
+
+    Call this after wire_dependencies() at application startup.
+
+    """
+
+    llm_service = container.llm_service()
+    
+    # Check if the service has an initialize method (OllamaLLMService does)
+    if hasattr(llm_service, 'initialize'):
+        await llm_service.initialize()
